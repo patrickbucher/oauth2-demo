@@ -1,6 +1,9 @@
 # oauth2-demo
 
-toy applications to demonstrate OAuth 2
+These are some toy applications to demonstrate OAuth 2. **Do not reuse the
+security mechanisms demonstrated here in productive applications!** The code is
+not so much about demonstrating security best practices, but to  elucidate the
+flow between the components in OAuth 2.
 
 ## Components and Endpoints
 
@@ -40,7 +43,8 @@ toy applications to demonstrate OAuth 2
     - `localhost:8000/gossip/john`
 4. The protected resource forwards the client to the authorization server.
     - `localhost:8443/authorizationForm?client_id=client&username=john`
-    - a `forward` parameter to `localhost:1234/gossip?username=john` is also provided
+    - a `forward` parameter to `localhost:1234/gossip?username=john` is also
+      provided
 5. The user enters the password and authorizes the client to access the gossip.
     - `client_id` and `username` from the request are stored in hidden fields
     - the `forward` parameter must also be stored in a hidden field
