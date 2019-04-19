@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -33,6 +34,8 @@ func main() {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return
 		}
+		log.Println("/gossip/" + username)
+		// TODO: read access_token from "Authorization" header
 		accessToken := r.URL.Query().Get("access_token")
 		if accessToken == "" {
 			w.Header().Add("WWW-Authenticate", "bearer")
