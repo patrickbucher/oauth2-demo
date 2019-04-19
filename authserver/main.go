@@ -35,8 +35,12 @@ var issuedTokens = map[string]accessToken{
 }
 
 func main() {
+	http.HandleFunc("/authorizationForm", func(w http.ResponseWriter, r *http.Request) {
+		// present login form to enter username and password
+		// client_id comes with the request (client redirected from resource)
+	})
 	http.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
-		// request params: username, password, client_id
+		// form params: username, password, client_id
 		// check if credentials[username] == password
 		// retrieve client_secret for client_id in clients map...
 		// ... or issue new client_secret and store it in clients map:

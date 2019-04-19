@@ -36,7 +36,7 @@ func main() {
 		accessToken := r.URL.Query().Get("access_token")
 		if accessToken == "" {
 			w.Header().Add("WWW-Authenticate", "bearer")
-			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			// TODO: forward to authserver
 			return
 		}
 		// TODO: validate accessToken against authserver
