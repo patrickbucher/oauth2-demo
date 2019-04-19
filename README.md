@@ -33,7 +33,7 @@ toy applications to demonstrate OAuth 2
 ## Flow
 
 1. The user accesses the client through the browser.
-    - `localhost:1234/index.html`
+    - `localhost:1234`
 2. The user enters the name of the user whose gossip should be displayed (his name).
     - `localhost:1234/gossip?username=john`
 3. The client tries to retrieve the gossip from the protected resource.
