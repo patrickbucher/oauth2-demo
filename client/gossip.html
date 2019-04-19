@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Gossip of User {{ .User }}</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <h1>Gossip of User {{ .User }}</h1>
+        <ul>
+            {{ range .Gossip }}
+            <li>{{ . }}</li>
+            {{ end }}
+        </ul>
+    </body>
+</html>
