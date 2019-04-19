@@ -23,6 +23,9 @@ var gossip = map[string][]string{
 }
 
 func main() {
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "resource.ico")
+	})
 	http.HandleFunc("/gossip/", func(w http.ResponseWriter, r *http.Request) {
 		accessToken := r.Header.Get("access_token")
 		if accessToken == "" {

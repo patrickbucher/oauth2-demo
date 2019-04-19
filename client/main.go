@@ -24,6 +24,10 @@ func main() {
 		http.ServeFile(w, r, "index.html")
 	})
 
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "gossip.ico")
+	})
+
 	http.HandleFunc("/gossip", func(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("username")
 		if username == "" {
