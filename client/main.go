@@ -36,15 +36,21 @@ func main() {
 				return http.ErrUseLastResponse
 			},
 		}
-		accessToken := r.FormValue("accessToken") // TODO: bring in somehow
+		accessToken := r.FormValue("accessToken") // TODO: bring in somehow after authN/authZ
 		resp, err := client.Get("http://localhost:8000/gossip/" + username +
 			"?access_token=" + accessToken)
 		if err != nil {
+			fmt.Println(err)
 			status := http.StatusInternalServerError
 			http.Error(w, http.StatusText(status), status)
 			return
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusSeeOther {
+			redirectURL := resp.Header.Get("Location")
+			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+			return
+		}
 		if resp.StatusCode != http.StatusOK {
 			status := http.StatusInternalServerError
 			http.Error(w, http.StatusText(status), status)

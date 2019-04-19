@@ -24,6 +24,15 @@ var gossip = map[string][]string{
 
 func main() {
 	http.HandleFunc("/gossip/", func(w http.ResponseWriter, r *http.Request) {
+		accessToken := r.Header.Get("access_token")
+		if accessToken == "" {
+			w.Header().Add("WWW-Authenticate", "bearer")
+			redirectURL := "http://localhost:8443/authorizationForm"
+			w.Header().Add("Location", redirectURL)
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		// TODO: validate accessToken against authserver, then continue
 		paths := strings.Split(r.URL.Path, "/") // ["", "gossip", "[username]"]
 		if len(paths) != 3 {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
@@ -35,14 +44,6 @@ func main() {
 			return
 		}
 		log.Println("/gossip/" + username)
-		// TODO: read access_token from "Authorization" header
-		accessToken := r.URL.Query().Get("access_token")
-		if accessToken == "" {
-			w.Header().Add("WWW-Authenticate", "bearer")
-			// TODO: forward to authserver
-			return
-		}
-		// TODO: validate accessToken against authserver
 		response, _ := json.Marshal(gossip[username])
 		w.Write(response)
 	})

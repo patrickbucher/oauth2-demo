@@ -26,7 +26,7 @@ var authorizedClients = map[string][]string{
 type accessToken struct {
 	clientId string    `json:"client_id"`
 	username string    `json:"username"`
-	expires  time.Date `json:"expires"`
+	expires  time.Time `json:"expires"`
 	tokenId  string    `json:"token_id"`
 }
 
@@ -36,6 +36,7 @@ var issuedTokens = map[string]accessToken{
 
 func main() {
 	http.HandleFunc("/authorizationForm", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "auth.html")
 		// present login form to enter username and password
 		// client_id comes with the request (client redirected from resource)
 	})
