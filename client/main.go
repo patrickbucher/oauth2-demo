@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -21,7 +22,18 @@ func main() {
 		http.ServeFile(w, r, "gossip.ico")
 	})
 	http.HandleFunc("/gossip", handleGossip)
+	http.HandleFunc("/callback", handleCallback)
+	log.Println("client listening on port 1234")
 	http.ListenAndServe("0.0.0.0:1234", nil)
+}
+
+func handleCallback(w http.ResponseWriter, r *http.Request) {
+	// TODO: extract callback_url and client_secret
+	// TODO: get an access_token from the auth server
+	// TODO: how to get that URL again? client does not know the auth server,
+	// must store somehow from the first redirect before following it along...?
+	// resource issues redirectURL (to auth server) and callbackURL (this handler)
+	// so authServer must attach its coordinates upon redirecting back to me
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +49,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	// TODO: bring in after authN/authZ
-	accessToken := r.FormValue("accessToken")
+	accessToken := r.FormValue("access_token")
 	resp, err := client.Get("http://localhost:8000/gossip/" + username +
 		"?access_token=" + accessToken)
 	if err != nil {
@@ -73,7 +85,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 func getGossipTemplate(file string) *template.Template {
 	htmlTemplate, err := ioutil.ReadFile(file)
 	if err != nil {
-		panic("error reading gossip.html template")
+		panic("error reading template " + file)
 	}
 	return template.Must(template.New("gossip").Parse(string(htmlTemplate)))
 }

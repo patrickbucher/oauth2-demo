@@ -6,6 +6,19 @@
     </head>
     <body>
         <h1>Authorization Form</h1>
-        <p>To be implemented...</p>
+        <form method="POST" action="/authorize">
+            <input type="hidden" value="{{ .CallbackURL }}"/>
+            <p>
+                <label for="username">user name</label>
+                <input type="text" name="username" id="username"/>
+            </p>
+            <p>
+                <label for="password">password</label>
+                <input type="password" name="password" id="password"/>
+            </p>
+            <p>
+                <input type="submit"/>
+            </p>
+        </form>
     </body>
 </html>

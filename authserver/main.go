@@ -1,7 +1,12 @@
 package main
 
 import (
+	"fmt"
+	"html/template"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -34,16 +39,42 @@ var issuedTokens = map[string]accessToken{
 	// "clientId:username" : accessToken (store in map for fast lookup)
 }
 
+type LoginForm struct {
+	CallbackURL string
+}
+
 func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "lock.ico")
 	})
-	http.HandleFunc("/authorizationForm", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "auth.html")
-		// present login form to enter username and password
-		// client_id comes with the request (client redirected from resource)
-	})
 	http.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			template := getLoginTemplate("auth.html")
+			callbackEscapedURL := r.URL.Query().Get("callback_url")
+			callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
+			if err != nil {
+				message := fmt.Sprintf("unescape %s: %v", callbackRawURL, err)
+				http.Error(w, message, http.StatusBadRequest)
+				return
+			}
+			callbackURL, err := url.Parse(callbackRawURL)
+			if err != nil {
+				message := fmt.Sprintf("parse %s: %v", callbackRawURL, err)
+				http.Error(w, message, http.StatusBadRequest)
+				return
+			}
+			loginForm := LoginForm{callbackURL.String()}
+			log.Println("callback URL", callbackURL.String())
+			template.Execute(w, loginForm)
+			// TODO: could username be pre-filled?
+			return
+		}
+		if r.Method != "POST" {
+			httpCode := http.StatusMethodNotAllowed
+			http.Error(w, http.StatusText(httpCode), httpCode)
+			return
+		}
+		// TOOD
 		// form params: username, password, client_id
 		// check if credentials[username] == password
 		// retrieve client_secret for client_id in clients map...
@@ -68,5 +99,14 @@ func main() {
 		// if so, return status 200
 		// otherwise, return status 403 (or better: 404?)
 	})
+	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
+}
+
+func getLoginTemplate(file string) *template.Template {
+	htmlTemplate, err := ioutil.ReadFile(file)
+	if err != nil {
+		panic("error reading template " + file)
+	}
+	return template.Must(template.New("login").Parse(string(htmlTemplate)))
 }
