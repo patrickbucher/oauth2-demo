@@ -9,6 +9,11 @@ import (
 	"net/http"
 )
 
+const (
+	resourceHost = "localhost:8000"
+	clientId     = "gossip_client"
+)
+
 type GossipOutput struct {
 	User   string
 	Gossip []string
@@ -48,12 +53,21 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 			return http.ErrUseLastResponse
 		},
 	}
-	// TODO: bring in after authN/authZ
-	accessToken := r.FormValue("access_token")
-	resp, err := client.Get("http://localhost:8000/gossip/" + username +
-		"?access_token=" + accessToken)
+	// TODO: bring in after authN/authZ instead, through request to auth server
+	var accessToken string
+	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?client_id=%s",
+		resourceHost, username, clientId)
+	log.Println(getGossipURL)
+	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("create GET request to %s: %v", getGossipURL, err)
+		httpCode := http.StatusInternalServerError
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	}
+	get.Header.Add("Authorization", "Bearer "+accessToken)
+	resp, err := client.Do(get)
+	if err != nil {
+		log.Println(err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
@@ -61,10 +75,12 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusSeeOther {
 		redirectURL := resp.Header.Get("Location")
+		log.Printf("forwarded to %s", redirectURL)
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("unexpected status code %d", resp.StatusCode)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return

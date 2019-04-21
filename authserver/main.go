@@ -39,8 +39,9 @@ var issuedTokens = map[string]accessToken{
 	// "clientId:username" : accessToken (store in map for fast lookup)
 }
 
-type LoginForm struct {
+type AuthForm struct {
 	CallbackURL string
+	ClientID    string
 }
 
 func main() {
@@ -63,7 +64,8 @@ func main() {
 				http.Error(w, message, http.StatusBadRequest)
 				return
 			}
-			loginForm := LoginForm{callbackURL.String()}
+			clientId := r.URL.Query().Get("client_id")
+			loginForm := AuthForm{callbackURL.String(), clientId}
 			log.Println("callback URL", callbackURL.String())
 			template.Execute(w, loginForm)
 			// TODO: could username be pre-filled?
@@ -74,13 +76,22 @@ func main() {
 			http.Error(w, http.StatusText(httpCode), httpCode)
 			return
 		}
-		// TOOD
-		// form params: username, password, client_id
-		// check if credentials[username] == password
-		// retrieve client_secret for client_id in clients map...
-		// ... or issue new client_secret and store it in clients map:
-		// clients[client_id] = client_secret
-		// authorize client to user: authorizedClients[username] = client_id
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+		if realPassword, ok := credentials[username]; !ok ||
+			password != realPassword {
+			httpCode := http.StatusUnauthorized
+			http.Error(w, http.StatusText(httpCode), httpCode)
+		}
+		clientId := r.FormValue("client_id")
+		secret, hasSecret := clients[clientId]
+		if !hasSecret {
+			secret = "abcdefg" // TODO: make it random
+			clients[clientId] = secret
+		}
+		// TODO attach secret to callback_url
+		// TODO precondition to client authorization?
+		authorizedClients[username] = append(authorizedClients[username], clientId)
 	})
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		// check if clients[client_id] == client_secret

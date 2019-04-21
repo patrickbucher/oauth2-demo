@@ -45,9 +45,11 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println("/gossip/" + username)
+	clientId := r.URL.Query().Get("client_id")
 	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		redirectURL, err := buildRedirectURL(r, username)
+	accessToken, err := extractAccessToken(authHeader)
+	if accessToken == "" || err != nil {
+		redirectURL, err := buildRedirectURL(r, username, clientId)
 		if err != nil {
 			errCode := http.StatusInternalServerError
 			http.Error(w, http.StatusText(errCode), errCode)
@@ -58,7 +60,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
-	// TODO: extract accessToken ("Authorization: Bearer [accessToken")
+	// TODO: extract accessToken ("Authorization: Bearer [accessToken]")
 	// TODO validate accessToken against authserver, then continue
 	response, err := json.Marshal(gossip[username])
 	if err != nil {
@@ -71,7 +73,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 
 func extractUsername(resource string) (string, error) {
 	paths := strings.Split(resource, "/") // ["", "gossip", "[username]"]
-	if len(paths) != 3 {
+	if len(paths) < 3 {
 		return "", fmt.Errorf("resource '%s' must be /gossip/[username]", resource)
 	}
 	username := paths[2]
@@ -81,7 +83,15 @@ func extractUsername(resource string) (string, error) {
 	return username, nil
 }
 
-func buildRedirectURL(r *http.Request, username string) (*url.URL, error) {
+func extractAccessToken(authorizationHeader string) (string, error) {
+	fields := strings.Fields(authorizationHeader)
+	if len(fields) != 2 || fields[0] != "Bearer" {
+		return "", fmt.Errorf(`form must be "Bearer [access_token]"`)
+	}
+	return fields[1], nil
+}
+
+func buildRedirectURL(r *http.Request, username, clientId string) (*url.URL, error) {
 	// TODO: is this id really needed?
 	id := base64RandomString(32)
 	callbackRawURL := "http://" + r.Host + "/callback/" + username + "?id=" + id
@@ -89,8 +99,9 @@ func buildRedirectURL(r *http.Request, username string) (*url.URL, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse URL %s: %v", callbackRawURL, err)
 	}
+	// TODO: build up URL proprely (not through string concatenation)
 	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
-		url.QueryEscape(callbackURL.String())
+		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientId
 	return url.Parse(redirectRawURL)
 }
 

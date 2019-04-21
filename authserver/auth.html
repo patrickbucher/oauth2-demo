@@ -6,8 +6,9 @@
     </head>
     <body>
         <h1>Authorization Form</h1>
-        <form method="POST" action="/authorize">
-            <input type="hidden" value="{{ .CallbackURL }}"/>
+        <form method="POST" action="/authorization">
+            <input type="hidden" name="callback_url" value="{{ .CallbackURL }}"/>
+            <input type="hidden" name="client_id" value="{{ .ClientID }}"/>
             <p>
                 <label for="username">user name</label>
                 <input type="text" name="username" id="username"/>
