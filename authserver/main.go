@@ -24,10 +24,10 @@ var authorizedClients = map[string][]string{
 }
 
 type accessToken struct {
-	clientId string    `json:"client_id"`
-	username string    `json:"username"`
-	expires  time.Time `json:"expires"`
-	tokenId  string    `json:"token_id"`
+	ClientID string    `json:"client_id"`
+	Username string    `json:"username"`
+	Expires  time.Time `json:"expires"`
+	TokenID  string    `json:"token_id"`
 }
 
 var issuedTokens = map[string]accessToken{
