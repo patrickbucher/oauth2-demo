@@ -1,5 +1,7 @@
 #!/bin/sh
 
+./kill.sh
+
 cd authserver
 go run authserver.go &
 
