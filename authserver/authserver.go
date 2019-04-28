@@ -92,11 +92,11 @@ func main() {
 		if !hasSecret {
 			secret = base64RandomString(32)
 			clients[clientId] = secret
-			log.Println("generated secret", secret, "for clientId", clientId)
 		}
-		// TODO attach secret to callback_url
-		// TODO precondition to client authorization?
+		// TODO is having a client_secret precondition to client authorization?
 		authorizedClients[username] = append(authorizedClients[username], clientId)
+		// TODO set Location header to callback URL to the client (not to the resource)
+		w.WriteHeader(http.StatusSeeOther)
 	})
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		// check if clients[client_id] == client_secret
