@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -50,6 +52,7 @@ func main() {
 	})
 	http.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
+			// GET: show form
 			template := getLoginTemplate("auth.html")
 			callbackEscapedURL := r.URL.Query().Get("callback_url")
 			callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
@@ -76,6 +79,7 @@ func main() {
 			http.Error(w, http.StatusText(httpCode), httpCode)
 			return
 		}
+		// POST: authorize according to context/credentials
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 		if realPassword, ok := credentials[username]; !ok ||
@@ -86,8 +90,9 @@ func main() {
 		clientId := r.FormValue("client_id")
 		secret, hasSecret := clients[clientId]
 		if !hasSecret {
-			secret = "abcdefg" // TODO: make it random
+			secret = base64RandomString(32)
 			clients[clientId] = secret
+			log.Println("generated secret", secret, "for clientId", clientId)
 		}
 		// TODO attach secret to callback_url
 		// TODO precondition to client authorization?
@@ -112,6 +117,12 @@ func main() {
 	})
 	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
+}
+
+func base64RandomString(nBytes uint) string {
+	data := make([]byte, nBytes)
+	rand.Read(data)
+	return base64.RawURLEncoding.EncodeToString(data)
 }
 
 func getLoginTemplate(file string) *template.Template {
