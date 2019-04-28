@@ -7,16 +7,18 @@ flow between the components in OAuth 2.
 
 ## Components and Endpoints
 
+TODO: update endpoints according to implementation
+
 - `resource`: the application holding and serving the protected resources (some
   random gossip)
     - port 8000
     - endpoint `/gossip/[username]`: receive the gossip from a given user
 - `authserver`: the server that issues and checks access tokens
     - port 8443
-    - endpoint `/authorizationForm?client_id=[client_id]`: shows an
+    - endpoint GET `/authorization?client_id=[client_id]`: shows an
       authorization form that lets the user authenticate and authorize access
       for the client with the given `client_id`
-    - endpoint `/authorization` (form params: `client=[client],
+    - endpoint POST `/authorization` (form params: `client=[client],
       username=[username], password=[password]`): authenticate a user and grant
       access rights to the client, return a `client_secret`
     - endpoint
@@ -34,6 +36,8 @@ flow between the components in OAuth 2.
   `authserver`
 
 ## Flow
+
+TODO: update flow according to implementation
 
 1. The user accesses the client through the browser.
     - `localhost:1234`
