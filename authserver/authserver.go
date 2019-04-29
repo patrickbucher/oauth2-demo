@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -29,10 +31,10 @@ var authorizedClients = map[string][]string{
 }
 
 type accessToken struct {
-	clientId string    `json:"client_id"`
-	username string    `json:"username"`
-	expires  time.Time `json:"expires"`
-	tokenId  string    `json:"token_id"`
+	ClientID string    `json:"client_id"`
+	Username string    `json:"username"`
+	Expires  time.Time `json:"expires"`
+	TokenID  string    `json:"token_id"`
 }
 
 var issuedTokens = map[string]accessToken{
@@ -50,6 +52,7 @@ func main() {
 	})
 	http.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
+			// GET: show form
 			template := getLoginTemplate("auth.html")
 			callbackEscapedURL := r.URL.Query().Get("callback_url")
 			callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
@@ -76,6 +79,7 @@ func main() {
 			http.Error(w, http.StatusText(httpCode), httpCode)
 			return
 		}
+		// POST: authorize according to context/credentials
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 		if realPassword, ok := credentials[username]; !ok ||
@@ -86,12 +90,13 @@ func main() {
 		clientId := r.FormValue("client_id")
 		secret, hasSecret := clients[clientId]
 		if !hasSecret {
-			secret = "abcdefg" // TODO: make it random
+			secret = base64RandomString(32)
 			clients[clientId] = secret
 		}
-		// TODO attach secret to callback_url
-		// TODO precondition to client authorization?
+		// TODO is having a client_secret precondition to client authorization?
 		authorizedClients[username] = append(authorizedClients[username], clientId)
+		// TODO set Location header to callback URL to the client (not to the resource)
+		w.WriteHeader(http.StatusSeeOther)
 	})
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		// check if clients[client_id] == client_secret
@@ -112,6 +117,12 @@ func main() {
 	})
 	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
+}
+
+func base64RandomString(nBytes uint) string {
+	data := make([]byte, nBytes)
+	rand.Read(data)
+	return base64.RawURLEncoding.EncodeToString(data)
 }
 
 func getLoginTemplate(file string) *template.Template {

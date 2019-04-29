@@ -29,9 +29,6 @@ var gossip = map[string][]string{
 }
 
 func main() {
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "resource.ico")
-	})
 	http.HandleFunc("/gossip/", handleGossip)
 	log.Println("resource listening on port 8000")
 	http.ListenAndServe("0.0.0.0:8000", nil)
