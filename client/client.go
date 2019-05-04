@@ -37,15 +37,6 @@ func main() {
 	http.ListenAndServe("0.0.0.0:1234", nil)
 }
 
-func handleCallback(w http.ResponseWriter, r *http.Request) {
-	// TODO: extract callback_url and client_secret
-	// TODO: get an access_token from the auth server
-	// TODO: how to get that URL again? client does not know the auth server,
-	// must store somehow from the first redirect before following it along...?
-	// resource issues redirectURL (to auth server) and callbackURL (this handler)
-	// so authServer must attach its coordinates upon redirecting back to me
-}
-
 func handleGossip(w http.ResponseWriter, r *http.Request) {
 	username := r.FormValue("username")
 	if username == "" {
@@ -104,6 +95,27 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 	}
 	output := GossipOutput{username, gossip}
 	gossipTemplate.Execute(w, output)
+}
+
+func handleCallback(w http.ResponseWriter, r *http.Request) {
+	scope, err := commons.ExtractPathElement(r.URL.Path, uint(1))
+	if err != nil {
+		log.Printf("extract first path element of %s: %v\n", r.URL.Path, err)
+		status := http.StatusBadRequest
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	authHost := r.URL.Query().Get("auth_host")
+	authPort := r.URL.Query().Get("auth_host")
+	state := r.URL.Query().Get("state")
+	if _, ok := pendingRequests[state]; !ok {
+		log.Println("state", state, "not in pending requests")
+		status := http.StatusBadRequest
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	log.Println("ready to request access_token from authserver", scope, authHost, authPort)
+	// TODO: get an access_token from the auth server
 }
 
 func getGossipTemplate(file string) *template.Template {

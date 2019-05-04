@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 const authHost = "localhost:8443"
@@ -33,10 +35,15 @@ func main() {
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
-	scope, err := extractScope(r.URL.Path)
+	scope, err := commons.ExtractPathElement(r.URL.Path, uint(1)) // /gossip/[username]
 	if err != nil {
-		errCode := http.StatusNotFound
+		errCode := http.StatusBadRequest
 		http.Error(w, err.Error(), errCode)
+		return
+	}
+	if _, ok := gossip[scope]; !ok {
+		errCode := http.StatusNotFound
+		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
 	log.Println("/gossip/" + scope)
@@ -68,18 +75,6 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(response)
-}
-
-func extractScope(resource string) (string, error) {
-	paths := strings.Split(resource, "/") // ["", "gossip", "[scope]"]
-	if len(paths) < 3 {
-		return "", fmt.Errorf("resource '%s' must be /gossip/[scope]", resource)
-	}
-	scope := paths[2]
-	if _, ok := gossip[scope]; !ok {
-		return "", fmt.Errorf("no gossip found for %s", scope)
-	}
-	return scope, nil
 }
 
 func extractAccessToken(authorizationHeader string) (string, error) {

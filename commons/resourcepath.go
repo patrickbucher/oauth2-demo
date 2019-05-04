@@ -9,7 +9,7 @@ import (
 // resource path and returns it without surrounding path delimiters ("/").
 // An error is returnes if the operation fails.
 // For resource "/foo/bar/qux" and nThElement 1, "bar" is returned.
-func ExtractPathElement(resource string, nthElement int) (string, error) {
+func ExtractPathElement(resource string, nthElement uint) (string, error) {
 	paths := strings.Split(resource, "/") // ["", "foo", "bar", "qux"]
 	paths = paths[1:]                     // cut off starting element (always empty)
 	if len(paths) <= nthElement {
