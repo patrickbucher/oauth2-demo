@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+
+	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 const (
@@ -19,6 +21,8 @@ type GossipOutput struct {
 	User   string
 	Gossip []string
 }
+
+var pendingRequests = map[string]bool{}
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -54,10 +58,9 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 			return http.ErrUseLastResponse
 		},
 	}
-	// TODO: bring in after authN/authZ instead, through request to auth server
-	var accessToken string
-	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?client_id=%s",
-		resourceHost, username, clientID)
+	state := commons.Base64RandomString(16)
+	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?host=%s&port=%d&client_id=%s&state=%s",
+		resourceHost, username, "localhost", 1234, clientID, state)
 	log.Println(getGossipURL)
 	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {
@@ -65,8 +68,8 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		httpCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(httpCode), httpCode)
 	}
-	get.Header.Add("Authorization", "Bearer "+accessToken)
 	resp, err := client.Do(get)
+	pendingRequests[state] = true
 	if err != nil {
 		log.Println(err)
 		status := http.StatusInternalServerError
@@ -80,6 +83,10 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
 	}
+
+	// TODO: this down here is for later...
+	// get.Header.Add("Authorization", "Bearer "+accessToken)
+
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("unexpected status code %d", resp.StatusCode)
 		status := http.StatusInternalServerError

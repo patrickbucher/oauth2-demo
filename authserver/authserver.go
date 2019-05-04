@@ -79,8 +79,10 @@ func main() {
 
 func handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+		log.Println("show authorization form")
 		showAuthorizationForm(w, r)
 	} else if r.Method == "POST" {
+		log.Println("process authorization request")
 		processAuthorization(w, r)
 	} else {
 		httpCode := http.StatusMethodNotAllowed
@@ -104,8 +106,8 @@ func showAuthorizationForm(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
-	clientId := r.URL.Query().Get("client_id")
-	loginForm := AuthForm{callbackURL.String(), clientId}
+	clientID := r.URL.Query().Get("client_id")
+	loginForm := AuthForm{callbackURL.String(), clientID}
 	log.Println("callback URL", callbackURL.String())
 	template.Execute(w, loginForm)
 	// TODO: could username be pre-filled?

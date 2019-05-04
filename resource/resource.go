@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-
-	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 const authHost = "localhost:8443"
@@ -35,18 +33,22 @@ func main() {
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
-	username, err := extractUsername(r.URL.Path)
+	scope, err := extractScope(r.URL.Path)
 	if err != nil {
 		errCode := http.StatusNotFound
 		http.Error(w, err.Error(), errCode)
 		return
 	}
-	log.Println("/gossip/" + username)
-	clientId := r.URL.Query().Get("client_id")
+	log.Println("/gossip/" + scope)
+	params := r.URL.Query()
+	remoteHost := params.Get("host")
+	remotePort := params.Get("port")
+	clientID := params.Get("client_id")
+	state := params.Get("state")
 	authHeader := r.Header.Get("Authorization")
 	accessToken, err := extractAccessToken(authHeader)
 	if accessToken == "" || err != nil {
-		redirectURL, err := buildRedirectURL(r, username, clientId)
+		redirectURL, err := buildRedirectURL(remoteHost, remotePort, scope, clientID, state)
 		if err != nil {
 			errCode := http.StatusInternalServerError
 			http.Error(w, http.StatusText(errCode), errCode)
@@ -54,12 +56,12 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Add("WWW-Authenticate", "bearer")
 		w.Header().Add("Location", redirectURL.String())
+		log.Println("redirect to", redirectURL.String())
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
-	// TODO: extract accessToken ("Authorization: Bearer [accessToken]")
 	// TODO validate accessToken against authserver, then continue
-	response, err := json.Marshal(gossip[username])
+	response, err := json.Marshal(gossip[scope])
 	if err != nil {
 		errCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(errCode), errCode)
@@ -68,16 +70,16 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
-func extractUsername(resource string) (string, error) {
-	paths := strings.Split(resource, "/") // ["", "gossip", "[username]"]
+func extractScope(resource string) (string, error) {
+	paths := strings.Split(resource, "/") // ["", "gossip", "[scope]"]
 	if len(paths) < 3 {
-		return "", fmt.Errorf("resource '%s' must be /gossip/[username]", resource)
+		return "", fmt.Errorf("resource '%s' must be /gossip/[scope]", resource)
 	}
-	username := paths[2]
-	if _, ok := gossip[username]; !ok {
-		return "", fmt.Errorf("no gossip found for %s", username)
+	scope := paths[2]
+	if _, ok := gossip[scope]; !ok {
+		return "", fmt.Errorf("no gossip found for %s", scope)
 	}
-	return username, nil
+	return scope, nil
 }
 
 func extractAccessToken(authorizationHeader string) (string, error) {
@@ -88,16 +90,14 @@ func extractAccessToken(authorizationHeader string) (string, error) {
 	return fields[1], nil
 }
 
-func buildRedirectURL(r *http.Request, username, clientId string) (*url.URL, error) {
-	// TODO: is this id really needed?
-	id := commons.Base64RandomString(32)
-	callbackRawURL := "http://" + r.Host + "/callback/" + username + "?id=" + id
+func buildRedirectURL(host, port, scope, clientID, state string) (*url.URL, error) {
+	callbackRawURL := fmt.Sprintf("http://%s:%s/callback/%s?state=%s",
+		host, port, scope, state)
 	callbackURL, err := url.Parse(callbackRawURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse URL %s: %v", callbackRawURL, err)
 	}
-	// TODO: build up URL proprely (not through string concatenation)
 	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
-		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientId
+		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientID
 	return url.Parse(redirectRawURL)
 }
