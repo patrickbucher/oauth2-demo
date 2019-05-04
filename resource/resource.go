@@ -35,7 +35,7 @@ func main() {
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
-	scope, err := commons.ExtractPathElement(r.URL.Path, uint(1)) // /gossip/[username]
+	scope, err := commons.ExtractPathElement(r.URL.Path, 1) // /gossip/[username]
 	if err != nil {
 		errCode := http.StatusBadRequest
 		http.Error(w, err.Error(), errCode)

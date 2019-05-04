@@ -98,7 +98,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCallback(w http.ResponseWriter, r *http.Request) {
-	scope, err := commons.ExtractPathElement(r.URL.Path, uint(1))
+	scope, err := commons.ExtractPathElement(r.URL.Path, 1)
 	if err != nil {
 		log.Printf("extract first path element of %s: %v\n", r.URL.Path, err)
 		status := http.StatusBadRequest
