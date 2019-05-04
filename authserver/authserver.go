@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -10,7 +8,14 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/patrickbucher/oauth2-demo/commons"
 )
+
+var clientCredentials = map[string]string{
+	// "client_id": "client_secret"
+	"gossip_client": "43897dfa-c910-4d3c-9851-5328cf49467d",
+}
 
 var credentials = map[string]string{
 	// "username": "password"
@@ -23,8 +28,8 @@ var clients = map[string]string{
 	// "client_id": "client_secret"
 }
 
-var authorizedClients = map[string][]string{
-	// "username": {"client_id1", "client_id2", ...}
+var authorizedScopes = map[string][]string{
+	// "scope": {"client_id1", "client_id2", ...}
 	"alice":   {},
 	"bob":     {},
 	"mallory": {},
@@ -47,57 +52,7 @@ type AuthForm struct {
 }
 
 func main() {
-	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "lock.ico")
-	})
-	http.HandleFunc("/authorization", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			// GET: show form
-			template := getLoginTemplate("auth.html")
-			callbackEscapedURL := r.URL.Query().Get("callback_url")
-			callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
-			if err != nil {
-				message := fmt.Sprintf("unescape %s: %v", callbackRawURL, err)
-				http.Error(w, message, http.StatusBadRequest)
-				return
-			}
-			callbackURL, err := url.Parse(callbackRawURL)
-			if err != nil {
-				message := fmt.Sprintf("parse %s: %v", callbackRawURL, err)
-				http.Error(w, message, http.StatusBadRequest)
-				return
-			}
-			clientId := r.URL.Query().Get("client_id")
-			loginForm := AuthForm{callbackURL.String(), clientId}
-			log.Println("callback URL", callbackURL.String())
-			template.Execute(w, loginForm)
-			// TODO: could username be pre-filled?
-			return
-		}
-		if r.Method != "POST" {
-			httpCode := http.StatusMethodNotAllowed
-			http.Error(w, http.StatusText(httpCode), httpCode)
-			return
-		}
-		// POST: authorize according to context/credentials
-		username := r.FormValue("username")
-		password := r.FormValue("password")
-		if realPassword, ok := credentials[username]; !ok ||
-			password != realPassword {
-			httpCode := http.StatusUnauthorized
-			http.Error(w, http.StatusText(httpCode), httpCode)
-		}
-		clientId := r.FormValue("client_id")
-		secret, hasSecret := clients[clientId]
-		if !hasSecret {
-			secret = base64RandomString(32)
-			clients[clientId] = secret
-		}
-		// TODO is having a client_secret precondition to client authorization?
-		authorizedClients[username] = append(authorizedClients[username], clientId)
-		// TODO set Location header to callback URL to the client (not to the resource)
-		w.WriteHeader(http.StatusSeeOther)
-	})
+	http.HandleFunc("/authorization", handleAuthorization)
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		// check if clients[client_id] == client_secret
 		// check if authorizedClients[username] contains client_id
@@ -115,14 +70,64 @@ func main() {
 		// if so, return status 200
 		// otherwise, return status 403 (or better: 404?)
 	})
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "lock.ico")
+	})
 	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
 }
 
-func base64RandomString(nBytes uint) string {
-	data := make([]byte, nBytes)
-	rand.Read(data)
-	return base64.RawURLEncoding.EncodeToString(data)
+func handleAuthorization(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		showAuthorizationForm(w, r)
+	} else if r.Method == "POST" {
+		processAuthorization(w, r)
+	} else {
+		httpCode := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+}
+
+func showAuthorizationForm(w http.ResponseWriter, r *http.Request) {
+	template := getLoginTemplate("auth.html")
+	callbackEscapedURL := r.URL.Query().Get("callback_url")
+	callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
+	if err != nil {
+		message := fmt.Sprintf("unescape %s: %v", callbackRawURL, err)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	callbackURL, err := url.Parse(callbackRawURL)
+	if err != nil {
+		message := fmt.Sprintf("parse %s: %v", callbackRawURL, err)
+		http.Error(w, message, http.StatusBadRequest)
+		return
+	}
+	clientId := r.URL.Query().Get("client_id")
+	loginForm := AuthForm{callbackURL.String(), clientId}
+	log.Println("callback URL", callbackURL.String())
+	template.Execute(w, loginForm)
+	// TODO: could username be pre-filled?
+}
+
+func processAuthorization(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	if realPassword, ok := credentials[username]; !ok ||
+		password != realPassword {
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+	}
+	clientId := r.FormValue("client_id")
+	secret, hasSecret := clients[clientId]
+	if !hasSecret {
+		secret = commons.Base64RandomString(32)
+		clients[clientId] = secret
+	}
+	authorizedScopes[username] = append(authorizedScopes[username], clientId)
+	// TODO set Location header to callback URL to the client (not to the resource)
+	w.WriteHeader(http.StatusSeeOther)
 }
 
 func getLoginTemplate(file string) *template.Template {

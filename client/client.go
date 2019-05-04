@@ -11,7 +11,8 @@ import (
 
 const (
 	resourceHost = "localhost:8000"
-	clientId     = "gossip_client"
+	clientID     = "gossip_client"
+	clientSecret = "43897dfa-c910-4d3c-9851-5328cf49467d"
 )
 
 type GossipOutput struct {
@@ -56,7 +57,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 	// TODO: bring in after authN/authZ instead, through request to auth server
 	var accessToken string
 	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?client_id=%s",
-		resourceHost, username, clientId)
+		resourceHost, username, clientID)
 	log.Println(getGossipURL)
 	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {

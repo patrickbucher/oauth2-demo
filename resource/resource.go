@@ -1,14 +1,14 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 const authHost = "localhost:8443"
@@ -90,7 +90,7 @@ func extractAccessToken(authorizationHeader string) (string, error) {
 
 func buildRedirectURL(r *http.Request, username, clientId string) (*url.URL, error) {
 	// TODO: is this id really needed?
-	id := base64RandomString(32)
+	id := commons.Base64RandomString(32)
 	callbackRawURL := "http://" + r.Host + "/callback/" + username + "?id=" + id
 	callbackURL, err := url.Parse(callbackRawURL)
 	if err != nil {
@@ -100,10 +100,4 @@ func buildRedirectURL(r *http.Request, username, clientId string) (*url.URL, err
 	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
 		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientId
 	return url.Parse(redirectRawURL)
-}
-
-func base64RandomString(nBytes uint) string {
-	data := make([]byte, nBytes)
-	rand.Read(data)
-	return base64.RawURLEncoding.EncodeToString(data)
 }
