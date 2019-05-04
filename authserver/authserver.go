@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 var clientCredentials = map[string]string{
@@ -22,10 +20,6 @@ var credentials = map[string]string{
 	"alice":   "topsecret",
 	"bob":     "1234",
 	"mallory": "70p53cr37",
-}
-
-var clients = map[string]string{
-	// "client_id": "client_secret"
 }
 
 var authorizedScopes = map[string][]string{
@@ -110,7 +104,6 @@ func showAuthorizationForm(w http.ResponseWriter, r *http.Request) {
 	loginForm := AuthForm{callbackURL.String(), clientID}
 	log.Println("callback URL", callbackURL.String())
 	template.Execute(w, loginForm)
-	// TODO: could username be pre-filled?
 }
 
 func processAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -120,15 +113,33 @@ func processAuthorization(w http.ResponseWriter, r *http.Request) {
 		password != realPassword {
 		httpCode := http.StatusUnauthorized
 		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
 	}
-	clientId := r.FormValue("client_id")
-	secret, hasSecret := clients[clientId]
-	if !hasSecret {
-		secret = commons.Base64RandomString(32)
-		clients[clientId] = secret
+	clientID := r.FormValue("client_id")
+	if _, ok := clientCredentials[clientID]; ok {
+		// there is a secret, and owner authorizes the scope for this client,
+		// but the client_secret hasn't been checked yet!
+		authorizedScopes[username] = append(authorizedScopes[username], clientID)
+	} else {
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
 	}
-	authorizedScopes[username] = append(authorizedScopes[username], clientId)
-	// TODO set Location header to callback URL to the client (not to the resource)
+	callbackURL, err := url.Parse(r.FormValue("callback_url"))
+	if err != nil {
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	coordinates := url.Values{"auth_host": {"localhost"}, "auth_port": {"8443"}}
+	redirectURL, err := url.Parse(fmt.Sprintf("%s&%s", callbackURL.String(), coordinates.Encode()))
+	if err != nil {
+		httpCode := http.StatusInternalServerError
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	log.Println("redirect to", redirectURL.String())
+	w.Header().Add("Location", redirectURL.String())
 	w.WriteHeader(http.StatusSeeOther)
 }
 
