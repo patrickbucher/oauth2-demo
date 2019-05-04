@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
+
+	"github.com/patrickbucher/oauth2-demo/commons"
 )
 
 var clientCredentials = map[string]string{
@@ -22,6 +27,10 @@ var credentials = map[string]string{
 	"mallory": "70p53cr37",
 }
 
+var authorizationCodes = map[string]string{
+	// "auth_code": "scope" (username)
+}
+
 var authorizedScopes = map[string][]string{
 	// "scope": {"client_id1", "client_id2", ...}
 	"alice":   {},
@@ -29,15 +38,10 @@ var authorizedScopes = map[string][]string{
 	"mallory": {},
 }
 
-type accessToken struct {
-	ClientID string    `json:"client_id"`
-	Username string    `json:"username"`
-	Expires  time.Time `json:"expires"`
-	TokenID  string    `json:"token_id"`
-}
+const accessTokenLifetime = "5m"
 
-var issuedTokens = map[string]accessToken{
-	// "clientId:username" : accessToken (store in map for fast lookup)
+var issuedTokens = map[string]time.Time{
+	// access_token: expiration time
 }
 
 type AuthForm struct {
@@ -47,13 +51,7 @@ type AuthForm struct {
 
 func main() {
 	http.HandleFunc("/authorization", handleAuthorization)
-	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		// check if clients[client_id] == client_secret
-		// check if authorizedClients[username] contains client_id
-		// issue new accessToken and store it in issuedTokens
-		// - tokenId are some random, base64 encoded bytes
-		// - serialize accessToken as JSON
-	})
+	http.HandleFunc("/token", handleToken)
 	http.HandleFunc("/accesscheck", func(w http.ResponseWriter, r *http.Request) {
 		// convert token from base64 string to JSON string
 		// unmarshal JSON structure to accessToken struct
@@ -69,6 +67,89 @@ func main() {
 	})
 	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
+}
+
+func handleToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		httpCode := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	authHeader := r.Header.Get("Authorization")
+	authHeaderParams := strings.Fields(authHeader)
+	if len(authHeaderParams) != 2 || authHeaderParams[0] != "Basic" {
+		log.Println("Authorization header missing 'Basic' field")
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	sentCredentials, err := base64.RawURLEncoding.DecodeString(authHeaderParams[1])
+	if err != nil {
+		log.Println("unable to base64 decode Authorization header", authHeaderParams[1])
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	credentials := strings.Split(string(sentCredentials), ":")
+	if len(credentials) != 2 {
+		log.Println("credentials must be of the form client_id:client_secret, but is", credentials)
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	clientID, clientSecret := credentials[0], credentials[1]
+	if secret, ok := clientCredentials[clientID]; !ok || secret != clientSecret {
+		log.Println("client", clientID, "not authorized")
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		log.Println("error parsing form", err)
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	grantType := r.FormValue("grant_type")
+	log.Println("grantType:", grantType)
+	if grantType != "authorization_code" {
+		log.Println("grantType", grantType, "not supported")
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	authCode := r.PostFormValue("authorization_code")
+	if username, ok := authorizationCodes[authCode]; !ok {
+		log.Println("authorization code", authCode, "invalid")
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	} else {
+		authorized := false
+		for _, authorizedClient := range authorizedScopes[username] {
+			if authorizedClient == clientID {
+				authorized = true
+				break
+			}
+		}
+		if !authorized {
+			log.Println("client", clientID, "is not authorized for", username)
+			httpCode := http.StatusUnauthorized
+			http.Error(w, http.StatusText(httpCode), httpCode)
+			return
+		} else {
+			// code has been used once
+			delete(authorizationCodes, authCode)
+		}
+	}
+	token := commons.Base64RandomString(32)
+	accessToken := commons.AccessToken{AccessToken: token, TokenType: "Bearer"}
+	duration, _ := time.ParseDuration(accessTokenLifetime)
+	expiresAt := time.Now().Add(duration)
+	issuedTokens[token] = expiresAt
+	w.Header().Add("Content-Type", "application/json")
+	payload, _ := json.Marshal(accessToken)
+	w.Write(payload)
 }
 
 func handleAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -131,8 +212,10 @@ func processAuthorization(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return
 	}
-	coordinates := url.Values{"auth_host": {"localhost"}, "auth_port": {"8443"}}
-	redirectURL, err := url.Parse(fmt.Sprintf("%s&%s", callbackURL.String(), coordinates.Encode()))
+	authCode := commons.Base64RandomString(16)
+	authorizationCodes[authCode] = username
+	params := url.Values{"auth_host": {"localhost"}, "auth_port": {"8443"}, "auth_code": {authCode}}
+	redirectURL, err := url.Parse(fmt.Sprintf("%s&%s", callbackURL.String(), params.Encode()))
 	if err != nil {
 		httpCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(httpCode), httpCode)

@@ -1,12 +1,16 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/patrickbucher/oauth2-demo/commons"
 )
@@ -22,6 +26,8 @@ type GossipOutput struct {
 	Gossip []string
 }
 
+// TODO store initial request scope as value, rather than bool, so that the
+// initial request can be replayed after retrieving an access_token.
 var pendingRequests = map[string]bool{}
 
 func main() {
@@ -32,7 +38,7 @@ func main() {
 		http.ServeFile(w, r, "gossip.ico")
 	})
 	http.HandleFunc("/gossip", handleGossip)
-	http.HandleFunc("/callback", handleCallback)
+	http.HandleFunc("/callback/", handleCallback)
 	log.Println("client listening on port 1234")
 	http.ListenAndServe("0.0.0.0:1234", nil)
 }
@@ -106,16 +112,61 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authHost := r.URL.Query().Get("auth_host")
-	authPort := r.URL.Query().Get("auth_host")
+	authPort := r.URL.Query().Get("auth_port")
+	authCode := r.URL.Query().Get("auth_code")
 	state := r.URL.Query().Get("state")
+	// TODO read initial request scope from map, then replay that request after
+	// retrieving the access_token
 	if _, ok := pendingRequests[state]; !ok {
 		log.Println("state", state, "not in pending requests")
 		status := http.StatusBadRequest
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	log.Println("ready to request access_token from authserver", scope, authHost, authPort)
-	// TODO: get an access_token from the auth server
+	log.Println("ready to request access_token from authserver", scope, authHost, authPort, authCode)
+	requestTokenRawURL := fmt.Sprintf("http://%s:%s/token", authHost, authPort)
+	bodyParams := url.Values{}
+	bodyParams.Set("grant_type", "authorization_code")
+	bodyParams.Set("authorization_code", authCode)
+	encodedBody := bodyParams.Encode()
+	post, err := http.NewRequest("POST", requestTokenRawURL, strings.NewReader(encodedBody))
+	log.Println("body", bodyParams.Encode())
+	if err != nil {
+		log.Printf("building POST request: %v\n", err)
+		status := http.StatusInternalServerError
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	authHeader := base64.RawURLEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+	post.Header.Add("Authorization", "Basic "+authHeader)
+	post.Header.Add("Accept", "application/json")
+	post.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	post.Header.Add("Content-Length", strconv.Itoa(len(encodedBody)))
+	client := &http.Client{}
+	resp, err := client.Do(post)
+	if err != nil {
+		log.Printf("executing POST request: %v\n", err)
+		status := http.StatusInternalServerError
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("getting access token: %d (%s)\n", resp.StatusCode, http.StatusText(resp.StatusCode))
+		status := http.StatusInternalServerError
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	var token commons.AccessToken
+	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+		log.Printf("unmarshal access token: %v\n", err)
+		status := http.StatusInternalServerError
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	log.Println(token)
+	// TODO store the access token for the request, so that it can be repeated?
+	// TODO now use the token to replay the original request
 }
 
 func getGossipTemplate(file string) *template.Template {
