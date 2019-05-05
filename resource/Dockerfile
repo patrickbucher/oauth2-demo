@@ -4,5 +4,6 @@ RUN apk add git ca-certificates
 WORKDIR /app
 COPY go.mod resource.go /app/
 RUN GO111MODULE=on go build -o /app/resource
-EXPOSE 8000
+ENV HOST=resource PORT=8000 AUTHSERVER_HOST=authserver AUTHSERVER_PORT=8443
+EXPOSE "$PORT"
 CMD ["/app/resource"]

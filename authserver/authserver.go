@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -54,6 +55,9 @@ type AuthForm struct {
 	ClientID    string
 }
 
+var host = os.Getenv("HOST")
+var port = os.Getenv("PORT")
+
 func main() {
 	http.HandleFunc("/authorization", handleAuthorization)
 	http.HandleFunc("/token", handleToken)
@@ -61,8 +65,8 @@ func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "lock.ico")
 	})
-	info("listening on port 8443")
-	http.ListenAndServe("0.0.0.0:8443", nil)
+	info("listening on port %s", port)
+	http.ListenAndServe("0.0.0.0:"+port, nil)
 }
 
 func handleAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -132,7 +136,7 @@ func processAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 	authCode := commons.Base64RandomString(16)
 	authorizationCodes[authCode] = username
-	params := url.Values{"auth_host": {"localhost"}, "auth_port": {"8443"}, "auth_code": {authCode}}
+	params := url.Values{"auth_host": {host}, "auth_port": {port}, "auth_code": {authCode}}
 	redirectURL, err := url.Parse(fmt.Sprintf("%s&%s", callbackURL.String(), params.Encode()))
 	if err != nil {
 		httpCode := http.StatusInternalServerError

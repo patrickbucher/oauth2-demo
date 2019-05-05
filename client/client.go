@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -17,7 +18,6 @@ import (
 )
 
 const (
-	resourceHost = "localhost:8000"
 	clientID     = "gossip_client"
 	clientSecret = "43897dfa-c910-4d3c-9851-5328cf49467d"
 )
@@ -37,6 +37,11 @@ var pendingRequests = map[string]string{
 
 var redirected = errors.New("redirected")
 
+var host = os.Getenv("HOST")
+var port = os.Getenv("PORT")
+var resourceHost = os.Getenv("RESOURCE_HOST")
+var resourcePort = os.Getenv("RESOURCE_PORT")
+
 func main() {
 	http.HandleFunc("/gossip", handleGossip)
 	http.HandleFunc("/callback/", handleCallback)
@@ -46,8 +51,8 @@ func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "gossip.ico")
 	})
-	info("listening on port 1234")
-	http.ListenAndServe("0.0.0.0:1234", nil)
+	info("listening on port %s", port)
+	http.ListenAndServe("0.0.0.0:"+port, nil)
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
@@ -148,8 +153,8 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 		},
 	}
 	state := commons.Base64RandomString(16)
-	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?host=%s&port=%d&client_id=%s&state=%s",
-		resourceHost, username, "localhost", 1234, clientID, state)
+	getGossipURL := fmt.Sprintf("http://%s:%s/gossip/%s?host=%s&port=%s&client_id=%s&state=%s",
+		resourceHost, resourcePort, username, host, port, clientID, state)
 	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {
 		info("create GET request to %s: %v", getGossipURL, err)

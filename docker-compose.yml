@@ -1,0 +1,40 @@
+version: '3'
+services:
+  authserver:
+    build: ./authserver
+    image: authserver:latest
+    container_name: authserver
+    ports:
+      - "8443:8443"
+    networks:
+      oauth2-demo:
+        aliases:
+          - authserver
+  client:
+    build: ./client
+    image: client:latest
+    container_name: client
+    ports:
+      - "1234:1234"
+    links:
+      - "resource"
+      - "authserver"
+    networks:
+      oauth2-demo:
+        aliases:
+          - client
+  resource:
+    build: ./resource
+    image: resource:latest
+    container_name: resource
+    ports:
+      - "8000:8000"
+    links:
+      - "authserver"
+    networks:
+      oauth2-demo:
+        aliases:
+          - resource
+networks:
+  oauth2-demo:
+    driver: bridge

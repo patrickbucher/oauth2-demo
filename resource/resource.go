@@ -7,13 +7,12 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/patrickbucher/oauth2-demo/commons"
 )
-
-const authHost = "localhost:8443"
 
 var gossip = map[string][]string{
 	"alice": {
@@ -30,10 +29,15 @@ var gossip = map[string][]string{
 	},
 }
 
+var host = os.Getenv("HOST")
+var port = os.Getenv("PORT")
+var authserverHost = os.Getenv("AUTHSERVER_HOST")
+var authserverPort = os.Getenv("AUTHSERVER_PORT")
+
 func main() {
 	http.HandleFunc("/gossip/", handleGossip)
-	info("listening on port 8000")
-	http.ListenAndServe("0.0.0.0:8000", nil)
+	info("listening on port %s", port)
+	http.ListenAndServe("0.0.0.0:"+port, nil)
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +95,7 @@ func validate(accessToken, scope string) bool {
 	bodyParams.Set("access_token", accessToken)
 	bodyParams.Set("scope", scope)
 	encodedBody := bodyParams.Encode()
-	authEndpoint := "http://" + authHost + "/accesscheck"
+	authEndpoint := fmt.Sprintf("http://%s:%s/accesscheck", authserverHost, authserverPort)
 	post, err := http.NewRequest("POST", authEndpoint, strings.NewReader(encodedBody))
 	if err != nil {
 		info("error creating POST request for token check: %v", err)
@@ -122,8 +126,8 @@ func buildRedirectURL(host, port, scope, clientID, state string) (*url.URL, erro
 	if err != nil {
 		return nil, fmt.Errorf("parse URL %s: %v", callbackRawURL, err)
 	}
-	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
-		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientID
+	redirectRawURL := fmt.Sprintf("http://%s:%s/authorization?callback_url=%s&client_id=%s",
+		authserverHost, authserverPort, url.QueryEscape(callbackURL.String()), clientID)
 	return url.Parse(redirectRawURL)
 }
 
