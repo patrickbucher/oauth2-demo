@@ -61,129 +61,17 @@ func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "lock.ico")
 	})
-	log.Println("auth server listening on port 8443")
+	info("listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
 }
 
-func handleAccessCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		httpCode := http.StatusMethodNotAllowed
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	accessToken := r.FormValue("access_token")
-	scope := r.FormValue("scope")
-	constraints, ok := issuedTokens[accessToken]
-	if !ok {
-		log.Println("invalid access token", accessToken)
-		httpCode := http.StatusForbidden
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	if scope != constraints.scope {
-		log.Println("invalid scope", scope, "for access token", accessToken)
-		httpCode := http.StatusForbidden
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	if constraints.expires.Before(time.Now()) {
-		log.Println("token expired at", constraints.expires)
-		httpCode := http.StatusForbidden
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-}
-
-func handleToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		httpCode := http.StatusMethodNotAllowed
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	authHeader := r.Header.Get("Authorization")
-	authHeaderParams := strings.Fields(authHeader)
-	if len(authHeaderParams) != 2 || authHeaderParams[0] != "Basic" {
-		log.Println("Authorization header missing 'Basic' field")
-		httpCode := http.StatusBadRequest
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	sentCredentials, err := base64.RawURLEncoding.DecodeString(authHeaderParams[1])
-	if err != nil {
-		log.Println("unable to base64 decode Authorization header", authHeaderParams[1])
-		httpCode := http.StatusBadRequest
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	credentials := strings.Split(string(sentCredentials), ":")
-	if len(credentials) != 2 {
-		log.Println("credentials must be of the form client_id:client_secret, but is", credentials)
-		httpCode := http.StatusBadRequest
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	clientID, clientSecret := credentials[0], credentials[1]
-	if secret, ok := clientCredentials[clientID]; !ok || secret != clientSecret {
-		log.Println("client", clientID, "not authorized")
-		httpCode := http.StatusUnauthorized
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		log.Println("error parsing form", err)
-		httpCode := http.StatusBadRequest
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	grantType := r.FormValue("grant_type")
-	log.Println("grantType:", grantType)
-	if grantType != "authorization_code" {
-		log.Println("grantType", grantType, "not supported")
-		httpCode := http.StatusBadRequest
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	authCode := r.PostFormValue("authorization_code")
-	username, ok := authorizationCodes[authCode]
-	if !ok {
-		log.Println("authorization code", authCode, "invalid")
-		httpCode := http.StatusUnauthorized
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	}
-	authorized := false
-	for _, authorizedClient := range authorizedScopes[username] {
-		if authorizedClient == clientID {
-			authorized = true
-			break
-		}
-	}
-	if !authorized {
-		log.Println("client", clientID, "is not authorized for", username)
-		httpCode := http.StatusUnauthorized
-		http.Error(w, http.StatusText(httpCode), httpCode)
-		return
-	} else {
-		// code has been used once
-		delete(authorizationCodes, authCode)
-	}
-	token := commons.Base64RandomString(32)
-	accessToken := commons.AccessToken{AccessToken: token, TokenType: "Bearer"}
-	duration, _ := time.ParseDuration(accessTokenLifetime)
-	expiresAt := time.Now().Add(duration)
-	issuedTokens[token] = tokenConstraint{expires: expiresAt, scope: username}
-	w.Header().Add("Content-Type", "application/json")
-	payload, _ := json.Marshal(accessToken)
-	w.Write(payload)
-}
-
 func handleAuthorization(w http.ResponseWriter, r *http.Request) {
+	info("call /authorization")
 	if r.Method == "GET" {
-		log.Println("show authorization form")
+		info("show authorization form")
 		showAuthorizationForm(w, r)
 	} else if r.Method == "POST" {
-		log.Println("process authorization request")
+		info("process authorization request")
 		processAuthorization(w, r)
 	} else {
 		httpCode := http.StatusMethodNotAllowed
@@ -198,18 +86,20 @@ func showAuthorizationForm(w http.ResponseWriter, r *http.Request) {
 	callbackRawURL, err := url.QueryUnescape(callbackEscapedURL)
 	if err != nil {
 		message := fmt.Sprintf("unescape %s: %v", callbackRawURL, err)
+		info(message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 	callbackURL, err := url.Parse(callbackRawURL)
 	if err != nil {
 		message := fmt.Sprintf("parse %s: %v", callbackRawURL, err)
+		info(message)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 	clientID := r.URL.Query().Get("client_id")
 	loginForm := AuthForm{callbackURL.String(), clientID}
-	log.Println("callback URL", callbackURL.String())
+	info("callback URL: %s", callbackURL.String())
 	template.Execute(w, loginForm)
 }
 
@@ -228,12 +118,14 @@ func processAuthorization(w http.ResponseWriter, r *http.Request) {
 		// but the client_secret hasn't been checked yet!
 		authorizedScopes[username] = append(authorizedScopes[username], clientID)
 	} else {
+		info("client %s is unauthorized for  %s", clientID, username)
 		httpCode := http.StatusUnauthorized
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return
 	}
 	callbackURL, err := url.Parse(r.FormValue("callback_url"))
 	if err != nil {
+		info("missing field callback_url in form")
 		httpCode := http.StatusBadRequest
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return
@@ -247,7 +139,7 @@ func processAuthorization(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return
 	}
-	log.Println("redirect to", redirectURL.String())
+	info("redirect to %s", redirectURL.String())
 	w.Header().Add("Location", redirectURL.String())
 	w.WriteHeader(http.StatusSeeOther)
 }
@@ -258,4 +150,122 @@ func getLoginTemplate(file string) *template.Template {
 		panic("error reading template " + file)
 	}
 	return template.Must(template.New("login").Parse(string(htmlTemplate)))
+}
+
+func handleToken(w http.ResponseWriter, r *http.Request) {
+	info("call /token")
+	if r.Method != "POST" {
+		httpCode := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	authHeader := r.Header.Get("Authorization")
+	authHeaderParams := strings.Fields(authHeader)
+	if len(authHeaderParams) != 2 || authHeaderParams[0] != "Basic" {
+		info("Authorization header missing 'Basic' field")
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	sentCredentials, err := base64.RawURLEncoding.DecodeString(authHeaderParams[1])
+	if err != nil {
+		info("unable to base64 decode Authorization header %s", authHeaderParams[1])
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	credentials := strings.Split(string(sentCredentials), ":")
+	if len(credentials) != 2 {
+		info("credentials must be of the form client_id:client_secret, but is %s", credentials)
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	clientID, clientSecret := credentials[0], credentials[1]
+	if secret, ok := clientCredentials[clientID]; !ok || secret != clientSecret {
+		info("client %s is not authorized", clientID)
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		info("error parsing form %v", err)
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	grantType := r.FormValue("grant_type")
+	if grantType != "authorization_code" {
+		info("grantType %s not supported", grantType)
+		httpCode := http.StatusBadRequest
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	authCode := r.PostFormValue("authorization_code")
+	username, ok := authorizationCodes[authCode]
+	if !ok {
+		info("authorization code %s invalid", authCode)
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	authorized := false
+	for _, authorizedClient := range authorizedScopes[username] {
+		if authorizedClient == clientID {
+			authorized = true
+			break
+		}
+	}
+	if !authorized {
+		info("client %s is not authorized for user %s", clientID, username)
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	} else {
+		// code has been used once
+		delete(authorizationCodes, authCode)
+	}
+	token := commons.Base64RandomString(32)
+	accessToken := commons.AccessToken{AccessToken: token, TokenType: "Bearer"}
+	duration, _ := time.ParseDuration(accessTokenLifetime)
+	expiresAt := time.Now().Add(duration)
+	issuedTokens[token] = tokenConstraint{expires: expiresAt, scope: username}
+	w.Header().Add("Content-Type", "application/json")
+	payload, _ := json.Marshal(accessToken)
+	w.Write(payload)
+}
+func handleAccessCheck(w http.ResponseWriter, r *http.Request) {
+	info("call /accesscheck")
+	if r.Method != "POST" {
+		httpCode := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	accessToken := r.FormValue("access_token")
+	scope := r.FormValue("scope")
+	constraints, ok := issuedTokens[accessToken]
+	if !ok {
+		info("invalid access token %s", accessToken)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if scope != constraints.scope {
+		info("invalid scope %s for access token %s", scope, accessToken)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if constraints.expires.Before(time.Now()) {
+		info("access token expired at %v", constraints.expires)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func info(format, args ...interface{}) {
+	message := fmt.Sprintf(format, args)
+	log.Println("[authserver]", message)
 }

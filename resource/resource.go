@@ -31,7 +31,7 @@ var gossip = map[string][]string{
 
 func main() {
 	http.HandleFunc("/gossip/", handleGossip)
-	log.Println("resource listening on port 8000")
+	info("listening on port 8000")
 	http.ListenAndServe("0.0.0.0:8000", nil)
 }
 
@@ -47,7 +47,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
-	log.Println("/gossip/" + scope)
+	info("call /gossip/%s", scope)
 	params := r.URL.Query()
 	remoteHost := params.Get("host")
 	remotePort := params.Get("port")
@@ -69,20 +69,19 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if validToken := validate(accessToken, scope); !validToken {
-		log.Println("access token invalid")
+		info("invalid access token %s for scope %s", accessToken, scope)
 		errCode := http.StatusForbidden
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
-	log.Println("valid access token")
 	response, err := json.Marshal(gossip[scope])
 	if err != nil {
-		log.Println("marshal gossip of", scope, err)
+		info("error marshalling gossip of %s: %v", scope, err)
 		errCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
-	log.Println("returning gossip of", scope)
+	info("returning gossip of scope %s", scope)
 	w.Write(response)
 }
 
@@ -94,7 +93,7 @@ func validate(accessToken, scope string) bool {
 	authEndpoint := "http://" + authHost + "/accesscheck"
 	post, err := http.NewRequest("POST", authEndpoint, strings.NewReader(encodedBody))
 	if err != nil {
-		log.Println("error creating POST request for token check", err)
+		info("error creating POST request for token check: %v", err)
 		return false
 	}
 	post.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -110,7 +109,7 @@ func validate(accessToken, scope string) bool {
 func extractAccessToken(authorizationHeader string) (string, error) {
 	fields := strings.Fields(authorizationHeader)
 	if len(fields) != 2 || fields[0] != "Bearer" {
-		return "", fmt.Errorf(`form must be "Bearer [access_token]"`)
+		return "", errrors.New(`form must be "Bearer [access_token]"`)
 	}
 	return fields[1], nil
 }
@@ -125,4 +124,8 @@ func buildRedirectURL(host, port, scope, clientID, state string) (*url.URL, erro
 	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
 		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientID
 	return url.Parse(redirectRawURL)
+}
+func info(format, args ...interface{}) {
+	message := fmt.Sprintf(format, args)
+	log.Println("[resource]", message)
 }
