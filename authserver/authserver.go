@@ -265,7 +265,10 @@ func handleAccessCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func info(format, args ...interface{}) {
-	message := fmt.Sprintf(format, args)
+func info(format string, args ...interface{}) {
+	message := format
+	if len(args) > 0 {
+		message = fmt.Sprintf(format, args)
+	}
 	log.Println("[authserver]", message)
 }

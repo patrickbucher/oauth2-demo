@@ -127,7 +127,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	log.Println("received token", token)
+	info("received token %s", token)
 	accessTokens[username] = token.AccessToken
 	gossip, err := requestGossip(username, w, r)
 	if err != nil {
@@ -150,7 +150,6 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 	state := commons.Base64RandomString(16)
 	getGossipURL := fmt.Sprintf("http://%s/gossip/%s?host=%s&port=%d&client_id=%s&state=%s",
 		resourceHost, username, "localhost", 1234, clientID, state)
-	log.Println(getGossipURL)
 	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {
 		info("create GET request to %s: %v", getGossipURL, err)
@@ -203,7 +202,10 @@ func getGossipTemplate(file string) *template.Template {
 	return template.Must(template.New("gossip").Parse(string(htmlTemplate)))
 }
 
-func info(format, args ...interface{}) {
-	message := fmt.Sprintf(format, args)
+func info(format string, args ...interface{}) {
+	message := format
+	if len(args) > 0 {
+		message = fmt.Sprintf(format, args)
+	}
 	log.Println("[client]", message)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -64,7 +65,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Add("WWW-Authenticate", "bearer")
 		w.Header().Add("Location", redirectURL.String())
-		log.Println("redirect to", redirectURL.String())
+		info("redirect to %s", redirectURL.String())
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
@@ -109,7 +110,7 @@ func validate(accessToken, scope string) bool {
 func extractAccessToken(authorizationHeader string) (string, error) {
 	fields := strings.Fields(authorizationHeader)
 	if len(fields) != 2 || fields[0] != "Bearer" {
-		return "", errrors.New(`form must be "Bearer [access_token]"`)
+		return "", errors.New(`form must be "Bearer [access_token]"`)
 	}
 	return fields[1], nil
 }
@@ -125,7 +126,11 @@ func buildRedirectURL(host, port, scope, clientID, state string) (*url.URL, erro
 		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientID
 	return url.Parse(redirectRawURL)
 }
-func info(format, args ...interface{}) {
-	message := fmt.Sprintf(format, args)
+
+func info(format string, args ...interface{}) {
+	message := format
+	if len(args) > 0 {
+		message = fmt.Sprintf(format, args)
+	}
 	log.Println("[resource]", message)
 }
