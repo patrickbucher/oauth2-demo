@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/patrickbucher/oauth2-demo/commons"
@@ -67,14 +68,43 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
-	// TODO validate accessToken against authserver, then continue
+	if validToken := validate(accessToken, scope); !validToken {
+		log.Println("access token invalid")
+		errCode := http.StatusForbidden
+		http.Error(w, http.StatusText(errCode), errCode)
+		return
+	}
+	log.Println("valid access token")
 	response, err := json.Marshal(gossip[scope])
 	if err != nil {
+		log.Println("marshal gossip of", scope, err)
 		errCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
+	log.Println("returning gossip of", scope)
 	w.Write(response)
+}
+
+func validate(accessToken, scope string) bool {
+	bodyParams := url.Values{}
+	bodyParams.Set("access_token", accessToken)
+	bodyParams.Set("scope", scope)
+	encodedBody := bodyParams.Encode()
+	authEndpoint := "http://" + authHost + "/accesscheck"
+	post, err := http.NewRequest("POST", authEndpoint, strings.NewReader(encodedBody))
+	if err != nil {
+		log.Println("error creating POST request for token check", err)
+		return false
+	}
+	post.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	post.Header.Add("Content-Length", strconv.Itoa(len(encodedBody)))
+	client := &http.Client{}
+	resp, err := client.Do(post)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return false
+	}
+	return true
 }
 
 func extractAccessToken(authorizationHeader string) (string, error) {

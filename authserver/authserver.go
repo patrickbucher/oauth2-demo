@@ -38,10 +38,15 @@ var authorizedScopes = map[string][]string{
 	"mallory": {},
 }
 
-const accessTokenLifetime = "5m"
+const accessTokenLifetime = "30s"
 
-var issuedTokens = map[string]time.Time{
-	// access_token: expiration time
+type tokenConstraint struct {
+	expires time.Time
+	scope   string
+}
+
+var issuedTokens = map[string]tokenConstraint{
+	// access_token: {expiration, scope}
 }
 
 type AuthForm struct {
@@ -52,21 +57,42 @@ type AuthForm struct {
 func main() {
 	http.HandleFunc("/authorization", handleAuthorization)
 	http.HandleFunc("/token", handleToken)
-	http.HandleFunc("/accesscheck", func(w http.ResponseWriter, r *http.Request) {
-		// convert token from base64 string to JSON string
-		// unmarshal JSON structure to accessToken struct
-		// build lookup key clientId:username
-		// retrieve all access tokens for this client/user combination
-		// check for each key if tokenId is matching
-		// if so, check if the token is not expired yet
-		// if so, return status 200
-		// otherwise, return status 403 (or better: 404?)
-	})
+	http.HandleFunc("/accesscheck", handleAccessCheck)
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "lock.ico")
 	})
 	log.Println("auth server listening on port 8443")
 	http.ListenAndServe("0.0.0.0:8443", nil)
+}
+
+func handleAccessCheck(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		httpCode := http.StatusMethodNotAllowed
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	accessToken := r.FormValue("access_token")
+	scope := r.FormValue("scope")
+	constraints, ok := issuedTokens[accessToken]
+	if !ok {
+		log.Println("invalid access token", accessToken)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if scope != constraints.scope {
+		log.Println("invalid scope", scope, "for access token", accessToken)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	if constraints.expires.Before(time.Now()) {
+		log.Println("token expired at", constraints.expires)
+		httpCode := http.StatusForbidden
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleToken(w http.ResponseWriter, r *http.Request) {
@@ -119,34 +145,34 @@ func handleToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	authCode := r.PostFormValue("authorization_code")
-	if username, ok := authorizationCodes[authCode]; !ok {
+	username, ok := authorizationCodes[authCode]
+	if !ok {
 		log.Println("authorization code", authCode, "invalid")
 		httpCode := http.StatusUnauthorized
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return
+	}
+	authorized := false
+	for _, authorizedClient := range authorizedScopes[username] {
+		if authorizedClient == clientID {
+			authorized = true
+			break
+		}
+	}
+	if !authorized {
+		log.Println("client", clientID, "is not authorized for", username)
+		httpCode := http.StatusUnauthorized
+		http.Error(w, http.StatusText(httpCode), httpCode)
+		return
 	} else {
-		authorized := false
-		for _, authorizedClient := range authorizedScopes[username] {
-			if authorizedClient == clientID {
-				authorized = true
-				break
-			}
-		}
-		if !authorized {
-			log.Println("client", clientID, "is not authorized for", username)
-			httpCode := http.StatusUnauthorized
-			http.Error(w, http.StatusText(httpCode), httpCode)
-			return
-		} else {
-			// code has been used once
-			delete(authorizationCodes, authCode)
-		}
+		// code has been used once
+		delete(authorizationCodes, authCode)
 	}
 	token := commons.Base64RandomString(32)
 	accessToken := commons.AccessToken{AccessToken: token, TokenType: "Bearer"}
 	duration, _ := time.ParseDuration(accessTokenLifetime)
 	expiresAt := time.Now().Add(duration)
-	issuedTokens[token] = expiresAt
+	issuedTokens[token] = tokenConstraint{expires: expiresAt, scope: username}
 	w.Header().Add("Content-Type", "application/json")
 	payload, _ := json.Marshal(accessToken)
 	w.Write(payload)

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -26,9 +27,15 @@ type GossipOutput struct {
 	Gossip []string
 }
 
-// TODO store initial request scope as value, rather than bool, so that the
-// initial request can be replayed after retrieving an access_token.
-var pendingRequests = map[string]bool{}
+var accessTokens = map[string]string{
+	// "username":"access_token"
+}
+
+var pendingRequests = map[string]string{
+	// "state":"username"
+}
+
+var redirected = errors.New("redirected")
 
 func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +57,15 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
+	output, err := requestGossip(username, w, r)
+	if err != nil {
+		return
+	}
+	gossipTemplate := getGossipTemplate("gossip.html")
+	gossipTemplate.Execute(w, output)
+}
+
+func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*GossipOutput, error) {
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -64,43 +80,43 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		log.Printf("create GET request to %s: %v", getGossipURL, err)
 		httpCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(httpCode), httpCode)
+		return nil, err
+	}
+	if accessToken, ok := accessTokens[username]; ok {
+		get.Header.Add("Authorization", "Bearer "+accessToken)
 	}
 	resp, err := client.Do(get)
-	pendingRequests[state] = true
+	pendingRequests[state] = username
 	if err != nil {
 		log.Println(err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
-		return
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusSeeOther {
 		redirectURL := resp.Header.Get("Location")
 		log.Printf("forwarded to %s", redirectURL)
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-		return
+		return nil, redirected
 	}
-
-	// TODO: this down here is for later...
-	// get.Header.Add("Authorization", "Bearer "+accessToken)
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("unexpected status code %d", resp.StatusCode)
+		msg := fmt.Sprintf("unexpected status code %d", resp.StatusCode)
+		log.Printf(msg)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
-		return
+		return nil, errors.New(msg)
 	}
-	gossipTemplate := getGossipTemplate("gossip.html")
 	decoder := json.NewDecoder(resp.Body)
 	var gossip []string
 	if err := decoder.Decode(&gossip); err != nil {
 		fmt.Println(err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
-		return
+		return nil, err
 	}
-	output := GossipOutput{username, gossip}
-	gossipTemplate.Execute(w, output)
+	return &GossipOutput{username, gossip}, nil
 }
 
 func handleCallback(w http.ResponseWriter, r *http.Request) {
@@ -115,9 +131,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	authPort := r.URL.Query().Get("auth_port")
 	authCode := r.URL.Query().Get("auth_code")
 	state := r.URL.Query().Get("state")
-	// TODO read initial request scope from map, then replay that request after
-	// retrieving the access_token
-	if _, ok := pendingRequests[state]; !ok {
+	username, ok := pendingRequests[state]
+	if !ok {
 		log.Println("state", state, "not in pending requests")
 		status := http.StatusBadRequest
 		http.Error(w, http.StatusText(status), status)
@@ -164,9 +179,18 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	log.Println(token)
-	// TODO store the access token for the request, so that it can be repeated?
-	// TODO now use the token to replay the original request
+	log.Println("received token", token)
+	accessTokens[username] = token.AccessToken
+	gossip, err := requestGossip(username, w, r)
+	if err != nil {
+		// TODO: 403: remove access token from list, retry authorization
+		log.Println("request gossip", err)
+		status := http.StatusInternalServerError
+		http.Error(w, http.StatusText(status), status)
+		return
+	}
+	gossipTemplate := getGossipTemplate("gossip.html")
+	gossipTemplate.Execute(w, gossip)
 }
 
 func getGossipTemplate(file string) *template.Template {
