@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -30,9 +29,11 @@ var gossip = map[string][]string{
 	},
 }
 
+var log = commons.Logger("resource")
+
 func main() {
 	http.HandleFunc("/gossip/", handleGossip)
-	info("listening on port 8000")
+	log("listening on port 8000")
 	http.ListenAndServe("0.0.0.0:8000", nil)
 }
 
@@ -48,7 +49,7 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
-	info("call /gossip/%s", scope)
+	log("call /gossip/%s", scope)
 	params := r.URL.Query()
 	remoteHost := params.Get("host")
 	remotePort := params.Get("port")
@@ -65,24 +66,24 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Add("WWW-Authenticate", "bearer")
 		w.Header().Add("Location", redirectURL.String())
-		info("redirect to %s", redirectURL.String())
+		log("redirect to %s", redirectURL.String())
 		w.WriteHeader(http.StatusSeeOther)
 		return
 	}
 	if validToken := validate(accessToken, scope); !validToken {
-		info("invalid access token %s for scope %s", accessToken, scope)
+		log("invalid access token %s for scope %s", accessToken, scope)
 		errCode := http.StatusForbidden
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
 	response, err := json.Marshal(gossip[scope])
 	if err != nil {
-		info("error marshalling gossip of %s: %v", scope, err)
+		log("error marshalling gossip of %s: %v", scope, err)
 		errCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(errCode), errCode)
 		return
 	}
-	info("returning gossip of scope %s", scope)
+	log("returning gossip of scope %s", scope)
 	w.Write(response)
 }
 
@@ -94,7 +95,7 @@ func validate(accessToken, scope string) bool {
 	authEndpoint := "http://" + authHost + "/accesscheck"
 	post, err := http.NewRequest("POST", authEndpoint, strings.NewReader(encodedBody))
 	if err != nil {
-		info("error creating POST request for token check: %v", err)
+		log("error creating POST request for token check: %v", err)
 		return false
 	}
 	post.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -125,12 +126,4 @@ func buildRedirectURL(host, port, scope, clientID, state string) (*url.URL, erro
 	redirectRawURL := "http://" + authHost + "/authorization?callback_url=" +
 		url.QueryEscape(callbackURL.String()) + "&client_id=" + clientID
 	return url.Parse(redirectRawURL)
-}
-
-func info(format string, args ...interface{}) {
-	message := format
-	if len(args) > 0 {
-		message = fmt.Sprintf(format, args)
-	}
-	log.Println("[resource]", message)
 }

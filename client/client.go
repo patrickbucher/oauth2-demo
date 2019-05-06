@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -37,6 +36,8 @@ var pendingRequests = map[string]string{
 
 var redirected = errors.New("redirected")
 
+var log = commons.Logger("client")
+
 func main() {
 	http.HandleFunc("/gossip", handleGossip)
 	http.HandleFunc("/callback/", handleCallback)
@@ -46,12 +47,12 @@ func main() {
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "gossip.ico")
 	})
-	info("listening on port 1234")
+	log("listening on port 1234")
 	http.ListenAndServe("0.0.0.0:1234", nil)
 }
 
 func handleGossip(w http.ResponseWriter, r *http.Request) {
-	info("call /gossip")
+	log("call /gossip")
 	username := r.FormValue("username")
 	if username == "" {
 		status := http.StatusBadRequest
@@ -67,10 +68,10 @@ func handleGossip(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleCallback(w http.ResponseWriter, r *http.Request) {
-	info("call /callback")
+	log("call /callback")
 	scope, err := commons.ExtractPathElement(r.URL.Path, 1)
 	if err != nil {
-		info("extract first path element of %s: %v", r.URL.Path, err)
+		log("extract first path element of %s: %v", r.URL.Path, err)
 		status := http.StatusBadRequest
 		http.Error(w, http.StatusText(status), status)
 		return
@@ -81,12 +82,12 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	username, ok := pendingRequests[state]
 	if !ok {
-		info("state %s not in pending requests", state)
+		log("state %s not in pending requests", state)
 		status := http.StatusBadRequest
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	info("request access_token for scope %s from authserver %s:%s with authCode %s",
+	log("request access_token for scope %s from authserver %s:%s with authCode %s",
 		scope, authHost, authPort, authCode)
 	requestTokenRawURL := fmt.Sprintf("http://%s:%s/token", authHost, authPort)
 	bodyParams := url.Values{}
@@ -95,7 +96,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	encodedBody := bodyParams.Encode()
 	post, err := http.NewRequest("POST", requestTokenRawURL, strings.NewReader(encodedBody))
 	if err != nil {
-		info("error building POST request: %v", err)
+		log("error building POST request: %v", err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
@@ -108,31 +109,31 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(post)
 	if err != nil {
-		info("error executing POST request: %v", err)
+		log("error executing POST request: %v", err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		info("getting access token: %d (%s)", resp.StatusCode, http.StatusText(resp.StatusCode))
+		log("getting access token: %d (%s)", resp.StatusCode, http.StatusText(resp.StatusCode))
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
 	var token commons.AccessToken
 	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		info("unmarshal access token: %v", err)
+		log("unmarshal access token: %v", err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
 	}
-	info("received token %s", token)
+	log("received token %s", token)
 	accessTokens[username] = token.AccessToken
 	gossip, err := requestGossip(username, w, r)
 	if err != nil {
 		// TODO HTTP status 403: remove access token from list, retry authorization
-		info("error requesting gossip: %v", err)
+		log("error requesting gossip: %v", err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return
@@ -152,7 +153,7 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 		resourceHost, username, "localhost", 1234, clientID, state)
 	get, err := http.NewRequest("GET", getGossipURL, nil)
 	if err != nil {
-		info("create GET request to %s: %v", getGossipURL, err)
+		log("create GET request to %s: %v", getGossipURL, err)
 		httpCode := http.StatusInternalServerError
 		http.Error(w, http.StatusText(httpCode), httpCode)
 		return nil, err
@@ -163,7 +164,7 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 	resp, err := client.Do(get)
 	pendingRequests[state] = username
 	if err != nil {
-		info("perform GET request to %s: %v", getGossipURL, err)
+		log("perform GET request to %s: %v", getGossipURL, err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return nil, err
@@ -171,14 +172,14 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusSeeOther {
 		redirectURL := resp.Header.Get("Location")
-		info("forwarded to %s", redirectURL)
+		log("forwarded to %s", redirectURL)
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return nil, redirected
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		msg := fmt.Sprintf("unexpected status code %d", resp.StatusCode)
-		info(msg)
+		log(msg)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return nil, errors.New(msg)
@@ -186,7 +187,7 @@ func requestGossip(username string, w http.ResponseWriter, r *http.Request) (*Go
 	decoder := json.NewDecoder(resp.Body)
 	var gossip []string
 	if err := decoder.Decode(&gossip); err != nil {
-		info("error decoding JSON response: %v", err)
+		log("error decoding JSON response: %v", err)
 		status := http.StatusInternalServerError
 		http.Error(w, http.StatusText(status), status)
 		return nil, err
@@ -200,12 +201,4 @@ func getGossipTemplate(file string) *template.Template {
 		panic("error reading template " + file)
 	}
 	return template.Must(template.New("gossip").Parse(string(htmlTemplate)))
-}
-
-func info(format string, args ...interface{}) {
-	message := format
-	if len(args) > 0 {
-		message = fmt.Sprintf(format, args)
-	}
-	log.Println("[client]", message)
 }
