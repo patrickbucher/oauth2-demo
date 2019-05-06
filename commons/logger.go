@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-func getLogger(name string) func(format string, args ...interface{}) {
+func Logger(name string) func(format string, args ...interface{}) {
 	return func(format string, args ...interface{}) {
 		message := format
 		if len(args) > 0 {
