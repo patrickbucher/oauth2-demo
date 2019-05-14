@@ -123,4 +123,6 @@ Endpoint that checks if a submitted access token is (still) valid.
 
 ## Run the Demo Applications
 
-TODO
+On Linux/macOS: using the script `run.sh`
+
+On Windows: by performing the steps in `run.sh` manually
