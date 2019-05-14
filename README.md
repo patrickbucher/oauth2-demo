@@ -11,7 +11,7 @@ TODO: describe endpoints and flow in more detail
 
 ## Components
 
-### `client` (Port 1234)
+### Client (Port 1234)
 
 The `client` fetches the resource owner's gossip from the `resource`.
 
@@ -37,7 +37,7 @@ Endpoint for the `authserver` to get back to the client after authorisation.
     - `auth_code`: authorization code, a one-time password (random, base64 encoded string)
     - `state`: request identifier initially generated from client (random, base64 encoded string)
 
-### `resource` (Port 8000)
+### Resource (Port 8000)
 
 The `resource` holds the resource owner's gossip and serves it if a valid access token is used.
 
@@ -69,7 +69,7 @@ Example response body:
 ]
 ```
 
-### `authserver` (Port 8443)
+### Authserver (Port 8443)
 
 The `authserver` handles user and client authentication, the user's client authorisations and manages the access tokens.
 
