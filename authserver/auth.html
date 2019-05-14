@@ -3,31 +3,55 @@
     <head>
         <title>Authorization Form</title>
         <meta charset="utf-8">
+        <link href="https://unpkg.com/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
         <style>
-            label {
-                width: 10em;
-                padding-right: 1em;
-                display: inline-block;
-                text-align: right;
+            input {
+                color: #7f9cf5;
+            }
+            input::placeholder {
+                color: #7f9cf5;
+            }
+            pre {
+                color: white;
+                position: absolute;
+                top: 45%;
+                text-align: center;
+                width: 100%;
             }
         </style>
     </head>
-    <body>
-        <h1>Authorization Form</h1>
-        <form method="POST" action="/authorization">
-            <input type="hidden" name="callback_url" value="{{ .CallbackURL }}"/>
-            <input type="hidden" name="client_id" value="{{ .ClientID }}"/>
-            <p>
-                <label for="username">user name</label>
-                <input type="text" name="username" id="username"/>
-            </p>
-            <p>
-                <label for="password">password</label>
-                <input type="password" name="password" id="password"/>
-            </p>
-            <p>
-                <input type="submit"/>
-            </p>
-        </form>
+    <body class="p-10 text-indigo-100 bg-indigo-600">
+    <div class="container mx-auto">
+        <h1 class="text-5xl text-center">Authorization Form</h1>
+        <div class="mx-auto pt-10 w-3/5">
+            <form method="POST"
+                  action="/authorization"
+                  class="bg-indigo-400 flex-wrap p-20 rounded-sm shadow-lg">
+                <input type="hidden" name="callback_url" value="{{ .CallbackURL }}"/>
+                <input type="hidden" name="client_id" value="{{ .ClientID }}"/>
+                <p class="flex-wrap">
+                    <label class="mt-20 w-full" for="username">Username</label>
+                    <input class="mt-1 outline-none p-3 rounded-sm shadow-lg w-full"
+                           type="text"
+                           name="username"
+                           placeholder="Jane Doe"
+                           id="username"/>
+                </p>
+                <p class="flex-wrap mt-5">
+                    <label class="mt-20 w-full" for="password">Password</label>
+                    <input class="mt-1 outline-none p-3 rounded-sm shadow-lg w-full"
+                           type="password"
+                           name="password"
+                           placeholder="*********"
+                           id="password"/>
+                </p>
+                <p>
+                    <input class="outline-none rounded-sm shadow-lg mt-10 p-3 text-indigo-400 w-full"
+                           type="submit"/>
+                </p>
+            </form>
+        </div>
+    </div>
+
     </body>
 </html>
