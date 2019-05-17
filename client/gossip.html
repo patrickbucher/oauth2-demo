@@ -3,13 +3,35 @@
     <head>
         <title>Gossip of User {{ .User }}</title>
         <meta charset="utf-8">
+        <link href="https://unpkg.com/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
+        <style>
+            input {
+                color: #63b3ed;
+            }
+            input::placeholder {
+                color: #63b3ed;
+            }
+            pre {
+                color: white;
+                position: absolute;
+                top: 45%;
+                text-align: center;
+                width: 100%;
+            }
+        </style>
     </head>
-    <body>
-        <h1>Gossip of User {{ .User }}</h1>
-        <ul>
-            {{ range .Gossip }}
-            <li>{{ . }}</li>
-            {{ end }}
-        </ul>
+    <body class="p-10 text-gray-100 bg-gray-600">
+    <div class="container mx-auto">
+        <h1 class="text-5xl text-center">Gossip of User {{ .User }}</h1>
+        <div class="mx-auto pt-10 w-3/5">
+            <div class="bg-gray-400 p-20 rounded-sm shadow-lg">
+                <ul>
+                    {{ range .Gossip }}
+                    <li class="bg-gray-100 mt-2 p-5 rounded-sm text-gray-600">{{ . }}</li>
+                    {{ end }}
+                </ul>
+            </div>
+        </div>
+    </div>
     </body>
 </html>

@@ -3,27 +3,36 @@
     <head>
         <title>Gossip Client</title>
         <meta charset="utf-8">
+        <link href="https://unpkg.com/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
         <style>
-        label {
-            padding-right: 1em;
-        }
-        input[type="submit"] {
-            margin-left: 1em;
-        }
+            input {
+                color: #63b3ed;
+            }
+            input::placeholder {
+                color: #63b3ed;
+            }
+            pre {
+                color: white;
+                position: absolute;
+                top: 45%;
+                text-align: center;
+                width: 100%;
+            }
         </style>
     </head>
-    <body>
-        <h1>Gossip Client</h1>
-        <div>
-            <form method="POST" action="/gossip">
-                <p>
-                    <label for="username">Whose gossip would you like to read?</label>
-                    <input type="text" id="username" name="username"/>
-                    <input type="submit" value="Get Gossip"/>
+    <body class="p-10 text-blue-100 bg-blue-600">
+    <div class="container mx-auto">
+        <h1 class="text-5xl text-center">Gossip Client</h1>
+        <div class="mx-auto pt-10 w-3/5">
+            <form method="POST" action="/gossip" class="bg-blue-400 p-20 rounded-sm shadow-lg">
+                <p class="flex-wrap">
+                    <label class="mt-20 w-full" for="username">Whose gossip would you like to read?</label>
+                    <input class="mt-1 outline-none p-3 rounded-sm shadow-lg w-full" type="text" placeholder="John Doe" id="username" name="username"/>
+                    <input class="outline-none rounded-sm shadow-lg mt-10 p-3 text-blue-400 w-full" type="submit" value="Get Gossip"/>
                 </p>
             </form>
         </div>
-        <script src="app.js"></script>
+    </div>
     </body>
 
 </html>
