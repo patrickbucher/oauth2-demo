@@ -123,6 +123,8 @@ Endpoint that checks if a submitted access token is (still) valid.
 
 ## Run the Demo Applications
 
+Requirements: Go version >= 1.11
+
 On Linux/macOS: using the script `run.sh`
 
 On Windows: by performing the steps in `run.sh` manually
