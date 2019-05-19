@@ -6,10 +6,10 @@
         <link href="https://unpkg.com/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
         <style>
             input {
-                color: #7f9cf5;
+                color: #68d391;
             }
             input::placeholder {
-                color: #7f9cf5;
+                color: #68d391;
             }
             pre {
                 color: white;
@@ -20,13 +20,13 @@
             }
         </style>
     </head>
-    <body class="p-10 text-indigo-100 bg-indigo-600">
+    <body class="p-10 text-green-100 bg-green-600">
     <div class="container mx-auto">
         <h1 class="text-5xl text-center">Authorization Form</h1>
         <div class="mx-auto pt-10 w-3/5">
             <form method="POST"
                   action="/authorization"
-                  class="bg-indigo-400 flex-wrap p-20 rounded-sm shadow-lg">
+                  class="bg-green-400 flex-wrap p-20 rounded-sm shadow-lg">
                 <input type="hidden" name="callback_url" value="{{ .CallbackURL }}"/>
                 <input type="hidden" name="client_id" value="{{ .ClientID }}"/>
                 <p class="flex-wrap">
@@ -46,7 +46,7 @@
                            id="password"/>
                 </p>
                 <p>
-                    <input class="outline-none rounded-sm shadow-lg mt-10 p-3 text-indigo-400 w-full"
+                    <input class="outline-none rounded-sm shadow-lg mt-10 p-3 text-green-400 w-full"
                            type="submit"/>
                 </p>
             </form>
