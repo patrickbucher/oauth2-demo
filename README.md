@@ -7,8 +7,6 @@ flow between the components in OAuth 2.
 
 The oauth2-demo consists of three services to serve gossip.
 
-TODO: describe endpoints and flow in more detail
-
 ## Components
 
 ### Client (Port 1234)
